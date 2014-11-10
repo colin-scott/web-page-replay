@@ -1,5 +1,7 @@
 #!/usr/bin/env python
 
+# TODO(cs): I suspect that redirects aren't working.
+
 import json
 import optparse
 import sys
