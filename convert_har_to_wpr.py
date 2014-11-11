@@ -1,6 +1,9 @@
 #!/usr/bin/env python
 
-# TODO(cs): I suspect that redirects aren't working.
+# TODO(cs): inject deterministic.js into the HTML? May change behavior enough
+# to cause the replay to miss some resources, but then again, if the replay is
+# going to miss some resources, it's probably acutely non-deterministic in the
+# first place, so deterministic.js injection shouludn't make it worse.
 
 import json
 import optparse
@@ -19,20 +22,26 @@ def open_har(filename):
   with open(filename) as har:
     return json.load(har)
 
+def extract_header_key_value(header):
+  header_name = convert_unicode(header["name"].lower())
+  header_value = convert_unicode(header["value"].lower())
+  if header_name == "transfer-encoding" and header_value == "chunked":
+   # Until chunked responses are properly, handled, print a warning.
+    print >> sys.stderr, "WARNING: chunked response"
+  return (header_name, header_value)
+
 def convert_headers_to_dict(har_headers):
   # If there are redundant headers, takes the last one.
   wpr_headers = {}
   for header in har_headers:
-    header_name = convert_unicode(header["name"].lower())
-    header_value = convert_unicode(header["value"].lower())
+    header_name, header_value = extract_header_key_value(header)
     wpr_headers[header_name] = header_value
   return wpr_headers
 
 def convert_headers_to_tuples(har_headers):
   tuples = []
   for header in har_headers:
-    header_name = convert_unicode(header["name"].lower())
-    header_value = convert_unicode(header["value"].lower())
+    header_name, header_value = extract_header_key_value(header)
     tuples.append((header_name, header_value))
   return tuples
 
