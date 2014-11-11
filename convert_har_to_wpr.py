@@ -6,9 +6,14 @@ import json
 import optparse
 import sys
 import os
+import unicodedata
 import urlparse
+import traceback
 
 import httparchive
+
+def convert_unicode(s):
+  return unicodedata.normalize('NFKD', s).encode('ascii','ignore')
 
 def open_har(filename):
   with open(filename) as har:
@@ -18,18 +23,22 @@ def convert_headers_to_dict(har_headers):
   # If there are redundant headers, takes the last one.
   wpr_headers = {}
   for header in har_headers:
-    wpr_headers[header["name"]] = header["value"]
+    header_name = convert_unicode(header["name"].lower())
+    header_value = convert_unicode(header["value"].lower())
+    wpr_headers[header_name] = header_value
   return wpr_headers
 
 def convert_headers_to_tuples(har_headers):
   tuples = []
   for header in har_headers:
-    tuples.append((header["name"], header["value"]))
+    header_name = convert_unicode(header["name"].lower())
+    header_value = convert_unicode(header["value"].lower())
+    tuples.append((header_name, header_value))
   return tuples
 
 def convert_request(request, is_ssl):
-  command = request["method"]
-  url = request["url"]
+  command = convert_unicode(request["method"])
+  url = convert_unicode(request["url"])
   url_object = urlparse.urlsplit(url)
   host = url_object.netloc
   # TODO(cs): must be a more robust way to get the full path. urlparse
@@ -37,7 +46,7 @@ def convert_request(request, is_ssl):
   full_path = url[url.find(host) + len(host):]
   request_body = None
   if "postData" in request:
-    request_body = request["postData"]
+    request_body = convert_unicode(request["postData"])
   headers = convert_headers_to_dict(request["headers"])
   return httparchive.ArchivedHttpRequest(command, host, full_path,
                                          request_body, headers,
@@ -76,12 +85,12 @@ def convert_timings(timings):
 def convert_response(response, timings):
   version = convert_version(response["httpVersion"])
   status = response["status"]
-  reason = response["statusText"]
+  reason = convert_unicode(response["statusText"])
   headers = convert_headers_to_tuples(response["headers"])
   # TODO(cs): deal with chunks properly.
   response_data = [""]
   if "text" in response["content"]:
-    response_data = [response["content"]["text"]]
+    response_data = [convert_unicode(response["content"]["text"])]
   delays = convert_timings(timings)
   return httparchive.ArchivedHttpResponse(version, status, reason,
                                           headers, response_data,
@@ -100,6 +109,7 @@ def convert_to_wpr(har):
       archive[request] = response
     return archive
   except KeyError as e:
+    traceback.print_exc(e)
     raise ValueError("Malformed HAR. " + str(e))
 
 def main():
