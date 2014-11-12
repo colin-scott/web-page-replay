@@ -15,6 +15,11 @@ import traceback
 
 import httparchive
 
+ignored_headers = [
+  # Sent by IE, but not Chrome.
+  'x-download-initiator'
+]
+
 def convert_unicode(s):
   return unicodedata.normalize('NFKD', s).encode('ascii','ignore')
 
@@ -25,24 +30,30 @@ def open_har(filename):
 def extract_header_key_value(header):
   header_name = convert_unicode(header["name"].lower())
   header_value = convert_unicode(header["value"].lower())
+  header_value = header_value.replace(" ", "")
   if header_name == "transfer-encoding" and header_value == "chunked":
    # Until chunked responses are properly, handled, print a warning.
     print >> sys.stderr, "WARNING: chunked response"
   return (header_name, header_value)
+
+def should_filter_headers(header_name):
+  return header_name in ignored_headers
 
 def convert_headers_to_dict(har_headers):
   # If there are redundant headers, takes the last one.
   wpr_headers = {}
   for header in har_headers:
     header_name, header_value = extract_header_key_value(header)
-    wpr_headers[header_name] = header_value
+    if not should_filter_headers(header_name):
+      wpr_headers[header_name] = header_value
   return wpr_headers
 
 def convert_headers_to_tuples(har_headers):
   tuples = []
   for header in har_headers:
     header_name, header_value = extract_header_key_value(header)
-    tuples.append((header_name, header_value))
+    if not should_filter_headers(header_name):
+      tuples.append((header_name, header_value))
   return tuples
 
 def convert_request(request, is_ssl):
