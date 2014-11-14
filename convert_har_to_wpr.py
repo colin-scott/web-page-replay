@@ -3,7 +3,7 @@
 # TODO(cs): inject deterministic.js into the HTML? May change behavior enough
 # to cause the replay to miss some resources, but then again, if the replay is
 # going to miss some resources, it's probably acutely non-deterministic in the
-# first place, so deterministic.js injection shouludn't make it worse.
+# first place, so deterministic.js injection shouldn't make it worse.
 
 import json
 import optparse
@@ -14,10 +14,16 @@ import urlparse
 import traceback
 
 import httparchive
+from png_generation.generate_random_png import get_dimensions
+from png_generation.minpng import to_png, generate_image_data
 
 ignored_headers = [
   # Sent by IE, but not Chrome.
-  'x-download-initiator'
+  'x-download-initiator',
+  # The bodies of our HAR HTTP responses are encoded in plain ascii. Avoid
+  # having to compress it, even if the origin originally compressed it.
+  # TODO(cs): uncompressing might affect performance. Consider compressing it.
+  'content-encoding'
 ]
 
 def convert_unicode(s):
@@ -102,6 +108,34 @@ def convert_timings(timings):
   }
   return delays
 
+def maybe_fill_in_image_data(entry):
+  # TODO(cs): deal with ETag header?
+  if "_image_total" not in entry:
+    return
+  image_size = int(entry["_image_total"])
+  response = entry["response"]
+  if image_size > 0 and "text" not in response["content"]:
+    response["content"]["mimeType"] = "image/png"
+    for header in response["headers"]:
+      if header["name"].lower() == "Content-Type":
+        header["value"] = "image/png"
+    # Smallest possible PNG is 70 bytes. If smaller, round up to 70.
+    if image_size < 70:
+      image_size = 70
+      entry["_image_total"] = 70
+      response["bodySize"] = 70
+      response["content"]["size"] = 70
+
+    (w, h) = get_dimensions(image_size)
+    pixels = generate_image_data(w, h)
+    # Binary string:
+    response["content"]["text"] = to_png(w, h, pixels)
+
+def is_favicon(entry):
+  return ("_image_total" in entry and
+          entry["_image_total"] > 0 and
+          entry["response"]["content"]["mimeType"].lower() == "image/x-icon")
+
 def convert_response(response, timings):
   version = convert_version(response["httpVersion"])
   status = response["status"]
@@ -110,7 +144,7 @@ def convert_response(response, timings):
   # TODO(cs): deal with chunks properly.
   response_data = [""]
   if "text" in response["content"]:
-    response_data = [convert_unicode(response["content"]["text"])]
+    response_data = [response["content"]["text"]]
   delays = convert_timings(timings)
   return httparchive.ArchivedHttpResponse(version, status, reason,
                                           headers, response_data,
@@ -122,6 +156,10 @@ def convert_to_wpr(har):
     archive = httparchive.HttpArchive()
     for entry in har["log"]["entries"]:
       timings = entry["timings"]
+      if is_favicon(entry):
+        # Favicons don't affect page load time.
+        continue
+      maybe_fill_in_image_data(entry)
       # TODO(cs): find a better way to infer ssl
       is_ssl = "ssl" in timings and timings["ssl"] != -1
       request = convert_request(entry["request"], is_ssl)
