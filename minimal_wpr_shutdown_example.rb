@@ -16,6 +16,7 @@ wpr_out.each do |line|
 end
 
 # Kill wpr:
-[wpr_out, wpr_in].each { |stream| stream.close }
+#[wpr_out, wpr_in].each { |stream| stream.close }
+Thread.new { wpr_out.each { |l| puts l } }
 Process.kill("TERM", wpr_pid)
 Process.wait wpr_pid

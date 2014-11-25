@@ -8,6 +8,10 @@
 # TODO(cs): account for performance cost of conditional GETs
 # TODO(cs): show a CDF of fraction of response bytes that are cacheable per
 # site.
+# TODO(cs): show a PDF of cache expiration date weighted by number of bytes
+# per resource. Intuition: nearly impossible to have perfect cache for objects
+# with very short expirations.
+
 from httparchive import HttpArchive
 import glob
 import re
@@ -70,6 +74,7 @@ if __name__ == '__main__':
 
   for wpr in glob.iglob(args[0] + "/*.wpr"):
     archive = HttpArchive.Load(wpr)
-    assume_perfect_cache(archive)
-    output_file = re.sub('.wpr$', '.pc.har', wpr)
-    archive.Persist(output_file)
+    output_file = re.sub('.wpr$', '.pc.wpr', wpr)
+    if not os.path.exists(output_file):
+      assume_perfect_cache(archive)
+      archive.Persist(output_file)
