@@ -14,6 +14,7 @@
 
 from httparchive import HttpArchive
 import glob
+import os
 import re
 import optparse
 
