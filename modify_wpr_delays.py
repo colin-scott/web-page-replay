@@ -1,4 +1,12 @@
 #!/usr/bin/env python
+"""Sets header delays to 0ms for every cacheable object in each .wpr file in
+the given directory and writes the output to <filename>.pc.wpr
+
+Usage: python modify_wpr_delays.py <directory containing wpr files>
+
+Note: Does not overwrite existing *.pc.wpr files
+See httparchive.py.ArchivedHttpResponse.fix_delays() for delay setting
+"""
 
 # TODO(cs): make cache hit ratio tunable.
 # TODO(cs): two analyses: perfect cachability at proxy, and perfect
